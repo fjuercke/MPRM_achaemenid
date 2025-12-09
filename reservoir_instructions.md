@@ -46,7 +46,7 @@ Once your asset is visible in your asset library:
 
 **Next, update the script:**
 
-1. Scroll to **line 190**.
+1. Scroll to **line 195**.
 2. Replace the placeholder with your Table ID.
 
 Example:

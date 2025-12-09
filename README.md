@@ -12,6 +12,13 @@ Based on the original code and paper:
 > 
 > Code cloned and adapted from repository: https://github.com/fjuercke/2025_MPRM_Petrie_etal_JAR
 
+The code used here is an iteration of the MPRM model. A version of the algorithm that integrates additional 
+factors and convolutions of those factors is under further development, and will be presented 
+in a separate paper where the additional parameters are used to consider movement across longer 
+distances and different environments and landscapes (Orengo et al. n.d.). The repository can be found here:
+
+https://github.com/horengo/Multitemporal-and-multifactor-probailistic-corridor-networks
+
 ## Contents
 
 This repository contains:
@@ -20,25 +27,20 @@ This repository contains:
 - [reservoir_instructions](reservoir_instructions): Instructions for loading the reservoir data into your GEE assets.
 
 ## How to run the code in your browser
-
 The code has been developed for implementation in Google Earth Engine's (c) JavaScript API 
-by H.A. Orengo, T.C. Wilkinson and F.K. Jürcke. The changes made to the original code to adapt it for modellling the
-Achaemenid Royal Road have been made by F.K. Jürcke with input from D. Salaris.
-
-The changes include:
-- use of a critical slope formula to account for wheeled vehicle movement
+by H.A. Orengo, T.C. Wilkinson and F.K. Jürcke.
 
 To run the code: 
 1) Ingest the reservoir data into your GEE assets. Please see the [instructions](reservoir_instructions).
 2) Copy the code contained in file [MPRM_costsurface](/code/MPRM_costsurface) into the Google Earth Engine code editor.
-3) Adjust line 190 in the code, which calls the reservoir data, to where the reservoir data is in your asset manager. 
+3) Adjust line 195 in the code, which calls the reservoir data, to where the reservoir data is in your asset manager. 
 4) Press 'Run'. 
 
 All further instructions are contained in the JavaScript Code. 
 
-The code presented here is an iteration of the MPRM model. A version of the algorithm that integrates additional 
-factors and convolutions of those factors is under further development, and will be presented 
-in a separate paper where the additional parameters are used to consider movement across longer 
-distances and different environments and landscapes (Orengo et al. n.d.). The repository can be found here:
+### Changes to the MPRM model:
+The changes made to the original code to adapt it for modelling the
+Achaemenid Royal Road have been made by F.K. Jürcke with input from D. Salaris.
 
-https://github.com/horengo/Multitemporal-and-multifactor-probailistic-corridor-networks
+The changes include:
+- use of a critical slope formula to account for wheeled vehicle movement

@@ -1,21 +1,24 @@
 /*
- JavaScript code to be implemented in Google Earth Engine(c) developed by H.A. Orengo, T.C. Wilkinson and F.K. Jürcke
- to accompany the paper:
+ JavaScript code to be implemented in Google Earth Engine's(c) JavaScript API developed by H.A. Orengo, T.C.
+  Wilkinson and F.K. Jürcke to accompany the paper:
  C.A. Petrie; F.K. Jürcke; T.C. Wilkinson; and H.A. Orengo 'Over the hills and far away: modelling mobility and
  connectivity across the Iranian Plateau in late prehistory (c. 10,000-2000 BC) using multi-factor probabilistic
  corridors' submitted to Journal of Archaeological Research
+
+The code submitted as part of the above paper has been adapted to model the Achaemenid Royal Road (c. 500-330 BC) by
+ F.K. Jürcke with input from D. Salaris.
 
                 ------------- ooo -------------
  TO EXECUTE THE ALGORITHM PASTE THIS CODE INTO GOOGLE EARTH ENGINE CODE EDITOR AND PRESS 'Run'
                 ------------- ooo -------------
 
- Title: Multi-factor, Probabilistic Route Modelling (MPRM)
+ Title: Multi-factor, Probabilistic Route Modelling (MPRM) for the Achaemenid Royal Road
  Type: GEE Javascript code
  Authors: Hector A. Orengo, Toby C. Wilkinson, Friederike K. Jürcke
- Date: 2024-06-27
+ Date: 2025-12-09
  Description: The Multi-factor, Probabilistic Route Modelling (MPRM) algorithm generates a cost surface for use in
  least-cost analysis. The following cost factors are implemented:
- - FACTOR A: topographic slope ('cost_slope')
+ - FACTOR A: topographic slope ('cost_slope') using the critical slope formula
  - FACTOR B: altitude ('cost_altitude')
  - FACTOR B: cost_snow ('cost_snow')
  - FACTOR C: sea water barrier ('mask_sea')
@@ -28,7 +31,7 @@
  1. Specific instructions of how the algorithm works have been included within the code, please,
     read these carefully and consult the paper's text to understand how to best apply it.
  2. To run the code you need to upload the reservoir dataset provided alongside the code into your GEE assets.
-    Then you need to update line 190 with the path to the reservoir dataset you have uploaded.
+    Then you need to update line 195 with the path to the reservoir dataset you have uploaded.
     Detailed instructions how to download and ingest the reservoir dataset can be found in the reservoir_instructions.md
  3. To apply the analysis to your own areas of interest (AOIs):
       1.  Define a central point in your study area (as X,Y WGS84 decimal degrees) and a scale
