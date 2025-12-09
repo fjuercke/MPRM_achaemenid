@@ -10,7 +10,7 @@ Based on the original code and paper:
 > 
 
 > 
-> Original code repository: https://github.com/fjuercke/2025_MPRM_Petrie_etal_JAR
+> Code cloned and adapted from repository: https://github.com/fjuercke/2025_MPRM_Petrie_etal_JAR
 
 ## Contents
 
