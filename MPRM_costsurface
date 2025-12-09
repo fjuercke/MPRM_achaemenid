@@ -1,0 +1,319 @@
+/*
+ JavaScript code to be implemented in Google Earth Engine(c) developed by H.A. Orengo, T.C. Wilkinson and F.K. Jürcke
+ to accompany the paper:
+ C.A. Petrie; F.K. Jürcke; T.C. Wilkinson; and H.A. Orengo 'Over the hills and far away: modelling mobility and
+ connectivity across the Iranian Plateau in late prehistory (c. 10,000-2000 BC) using multi-factor probabilistic
+ corridors' submitted to Journal of Archaeological Research
+
+                ------------- ooo -------------
+ TO EXECUTE THE ALGORITHM PASTE THIS CODE INTO GOOGLE EARTH ENGINE CODE EDITOR AND PRESS 'Run'
+                ------------- ooo -------------
+
+ Title: Multi-factor, Probabilistic Route Modelling (MPRM)
+ Type: GEE Javascript code
+ Authors: Hector A. Orengo, Toby C. Wilkinson, Friederike K. Jürcke
+ Date: 2024-06-27
+ Description: The Multi-factor, Probabilistic Route Modelling (MPRM) algorithm generates a cost surface for use in
+ least-cost analysis. The following cost factors are implemented:
+ - FACTOR A: topographic slope ('cost_slope')
+ - FACTOR B: altitude ('cost_altitude')
+ - FACTOR B: cost_snow ('cost_snow')
+ - FACTOR C: sea water barrier ('mask_sea')
+ - FACTOR C: surface water barrier ('cost_surface water')
+ - FACTOR C: reservoir mask ('mask_reservoirs')
+ - FACTOR D: potable water accessibility ('cost_reducer_water_accessibility')
+
+                 ------------- ooo -------------
+  !!! NOTES, READ CAREFULLY !!!
+ 1. Specific instructions of how the algorithm works have been included within the code, please,
+    read these carefully and consult the paper's text to understand how to best apply it.
+ 2. To run the code you need to upload the reservoir dataset provided alongside the code into your GEE assets.
+    Then you need to update line 190 with the path to the reservoir dataset you have uploaded.
+    Detailed instructions how to download and ingest the reservoir dataset can be found in the reservoir_instructions.md
+ 3. To apply the analysis to your own areas of interest (AOIs):
+      1.  Define a central point in your study area (as X,Y WGS84 decimal degrees) and a scale
+          for visualisation purposes in line 63.
+      2.  Eliminate the polygon variable in lines 67-74 and define your own polygon. This can be done by either
+          replacing the coordinates of the polygon variable with coordinates of a different polygon
+          (as X,Y WGS84 decimal degrees) or drawing your own polygon (as a geometry) delimiting the AOI
+          using the tool provided in the top left of Google Earth Engine’s map window. This will create a
+          polygon named ‘geometry’ by default. The analysis will be performed in the newly defined area.
+ 4. Visualisation parameters for each layer can be adjusted in the Layers dialogue in the map
+    area of Google Earth Engine.
+ 5. The images resulting from this script can be transferred to your Assets or Google Drive running
+    the analysis from the 'Tasks' tab on the top right of the screen and selecting the Drive option.
+                  ------------- ooo -------------
+
+ For more information on how this code works and how to apply it, refer to the text of the article.
+
+///FACTORS INCLUDED:
+      SLOPE
+      SEA MASK
+      SNOW
+      ALTITUDE
+      SURFACE WATER as barrier
+      RESERVOIR MASK
+      WATER PRESENCE as attractor (dsrtThrs: 0.05; waterThrs: 0.1)
+*/
+
+//////// AREA OF INTEREST /////////
+// Define a central point in your study area (as X,Y WGS84 decimal degrees) and a scale,
+// just for visualisation purposes
+
+Map.setCenter(61.5339, 26.6598, 5);
+
+// Define your AOI as a polygon with a set of WGS84 coordinates
+
+var geometry = ee.Geometry.Polygon([[
+    [ 41.835136120996907, 24.535424533447777 ], 
+    [ 74.214706535851121, 24.535424533447777 ], 
+    [ 74.214706535851121, 40.300730175980803 ], 
+    [ 41.835136120996907, 40.300730175980803 ], 
+    [ 41.835136120996907, 24.535424533447777 ]]],
+    'EPSG:4326',
+    false);
+
+
+//////// TEMPORAL PARAMETERS ////////
+
+// Seasonal parameters.
+var spring = ee.Filter.dayOfYear(79,172);
+var summer = ee.Filter.dayOfYear(172,266);
+var autumn = ee.Filter.dayOfYear(266,355);
+var winter = ee.Filter.dayOfYear(355,79);
+
+// User input: Specify a period form the list of variables above.
+// Which season of travel will the cost surface be created for?
+var select_period = prompt('Select season of travel: spring, summer, autumn, winter', 'spring');//
+
+if (select_period == 'spring') {var period = spring; var monthNum = '03'; var monthName = 'spring'}
+if (select_period == 'summer') {var period = summer; var monthNum = '06'; var monthName = 'summer'}
+if (select_period == 'autumn') {var period = autumn; var monthNum = '09'; var monthName = 'autumn'}
+if (select_period == 'winter') {var period = winter; var monthNum = '00'; var monthName = 'winter'}
+// The ee.ImageCollection("JRC/GSW1_3/MonthlyRecurrence") used for the calculation of the surface water barrier
+// factor is available for each month, denoted by a two-digit number; the data for this factor is extracted for
+// the central month of the three-month period spanning each season and represented by the monthNum variable
+// (03 for April; 06 for July; 09 for October; 00 for January).
+
+
+//////// DIGITAL SURFACE MODEL (DSM) ////////
+
+// Load the DSM. Here the ALOS Global 30m DSM is used.
+var ref = ee.ImageCollection('JAXA/ALOS/AW3D30/V4_1').filterBounds(geometry).select('DSM').first();
+
+var dsm = ee.ImageCollection('JAXA/ALOS/AW3D30/V4_1')
+          .filterBounds(geometry)
+          .select('DSM')
+          .mosaic()
+          .reproject(ref.projection())
+          .clip(geometry);
+
+
+//////// **FACTOR A**: TOPOGRAPHIC SLOPE ('cost_slope') ////////
+// Create a raster representing slope costs. This raster forms the basis of the cost surface to which all other
+// factors are multipliers or dividers (except for the sea mask and reservoirs mask, which are summed).
+
+// Creating a slope map in degrees from the DSM image.
+var slope = ee.Terrain.slope(dsm);
+
+// Transform slope to mathematical degrees as a basis for the slope cost calculation in the next step.
+var slp_rad = slope.multiply(3.1415926536)
+    .divide(180);
+var slp_dg = slp_rad.tan();
+
+// Calculate slope costs for humans using the sixth degree polynomial developed by Herzog (2013).
+var cost_slope = ((slp_dg.pow(6)).multiply(1337.8))
+    .add((slp_dg.pow(5)).multiply(278.19))
+    .subtract((slp_dg.pow(4)).multiply(517.39))
+    .subtract((slp_dg.pow(3)).multiply(78.199))
+    .add((slp_dg.pow(2)).multiply(93.419))
+    .add((slp_dg.multiply(19.825)))
+    .add(1.64);
+
+
+//////// **FACTOR B:** ALTITUDE ('cost_altitude') ////////
+// Create a raster to factor in the effect of altitude for travellers for all areas above 2000 m asl.
+// Using a purposefully developed function: f = 0.00345*e^0.000845h (where h is the dsm value for each cell)
+var cost_altitude = (ee.Image(0.00345)
+    .multiply(ee.Image(2.718)
+    .pow(dsm.multiply(ee.Image(0.000845)))))
+    .multiply(dsm.gt(2000))
+    .add(ee.Image(1));
+
+
+//////// **FACTOR B:** SNOW ('cost_snow') ////////
+// Create a raster layer representing areas covered in snow.
+// Load and filter the image collection.
+var snowBase = ee.ImageCollection('MODIS/061/MOD10A1').select('NDSI_Snow_Cover')
+    .filter(period)
+    .filterBounds(geometry)
+    .reduce(ee.Reducer.mean(), 4)
+    .unmask(0)
+    .clip(geometry)
+    .multiply(dsm.gte(2000));
+
+// Create the cost layer. Convert the original image values to a range between 1-4.
+var cost_snow = snowBase.divide(33.33).add(ee.Image(1));
+
+
+//////// **FACTOR C:** SEA WATER BARRIER ('mask_sea') ////////
+// Create a mask raising the costs across seas and standing water bodies to prevent least-cost analysis across water
+// bodies.
+// Data is provided in band 'water_mask'; original values: 0 = Land 1 = Water.
+
+// Load the image.
+var sea = ee.Image('MODIS/MOD44W/MOD44W_005_2000_02_24').select('water_mask').clip(geometry);
+
+// Create the mask layer. The bitmask is remapped to create a mask usable for addition. Increase the image values for
+// water to 255.
+var mask_sea = sea.remap([0,1],[0,255]);
+
+
+//////// **FACTOR C:** SURFACE WATER BARRIER ('cost_surface_water') ////////
+// Create a raster layer representing areas with surface water. The layer is derived from global monthly recurrence
+// surface water product based on Landsat 5-8 data.
+
+// Load the image.
+var watRecur = ee.Image('JRC/GSW1_3/MonthlyRecurrence/monthly_recurrence_'+ monthNum).select("monthly_recurrence")
+    .unmask(0)
+    .clip(geometry);
+
+// Create the cost layer. Convert the original image values to a range between 1-4.
+var cost_surface_water = watRecur.divide(33.33).add(ee.Image(1));
+
+
+//////// **FACTOR C:** RESERVOIR MASK ('mask_reservoirs') ////////
+// Create a binary raster to mask reservoir areas based on the GRanD database provided by Global Dam Watch (Lehner
+// et al 2011).
+
+// Load the reservoir dataset provided as a polygon vector layer. 
+var reservoir_polygons = ee.FeatureCollection('projects/ee-fkjuercke/assets/GDW_reservoirs_v1_0'); // !!!ADJUST PATH TO WHERE THE RESERVOIR DATASET IS STORED!!!
+
+// Create a binary raster with value 0 for all areas covered in reservoirs and 1 for all other cells. Upon multiplication to the 'cost_slope' raster all reservoir
+// areas will be set to 0.
+// 1. Create a base image (the background, outside polygons = 0).
+//    - Use the first band of the DSM to get the extent and projection.
+var emptyImage = dsm.select(0).multiply(0); // Creates an image of all 0s over the DSM area
+
+// Paint the polygons onto the empty image (inside polygons = 1) to create a binary raster mask for the reservoirs.
+var mask_reservoirs = emptyImage.paint({
+  featureCollection: reservoir_polygons,
+  color: 1, // The value to paint (1; for inside the polygons)
+  }).rename('binary') // Rename the band to 'binary'
+    .clip(geometry)
+    .remap([0,1],[1,0]); 
+
+// Remap binary reservoir map to give the cells previously covered by reservoirs a cost value of 3.28. To be added
+// in final cost raster creation.
+var reservoirs_new_value = mask_reservoirs.remap([0,1],[3.28,0]);
+
+
+//////// **FACTOR D:** POTABLE WATER ACCESSIBILITY ('cost_reducer_water_accessibility') ////////
+// Create a cost reducer raster to factor in attraction to areas with presence of potable water.
+
+// Load and filter the image collection: multi-temporal Enhanced Vegetation Index (EVI) based on Landsat data.
+var evi = ee.ImageCollection('LANDSAT/COMPOSITES/C02/T1_L2_8DAY_EVI')
+    .filterDate('1984-01-01', '1991-12-31')
+    .filter(period)
+    .filterBounds(geometry)
+    .reduce(ee.Reducer.mean())
+    .unmask(0)
+    .clip(geometry);
+
+// The desert threshold 'dsrtThrs' is the EVI value designated below which desert conditions prevail.
+var dsrtThrs = 0.05;
+
+// The water threshold 'waterThrs' is the EVI value at and above which healthy vegetation representing water
+// availability prevails.
+var waterThrs = 0.1;
+
+// Create the cost raster at a value range between 1-2.
+var water1 = evi.gte(dsrtThrs); // Select values above the desert threshold.
+var water2 = evi.lte(waterThrs); // Select values below the water threshold.
+var water3 = (evi.lte(dsrtThrs)).multiply(dsrtThrs); // Values lower than 0.05 equal 0.05.
+var water4 = (evi.gte(waterThrs)).multiply(waterThrs); // Values greater than 0.1 equal 0.1.
+var water5 = ((water1.multiply(water2)).multiply(evi)).add(water3).add(water4);
+var cost_reducer_water_accessibility = ((water5.subtract(dsrtThrs)).divide(waterThrs-dsrtThrs)).add(1);
+
+
+//////// COMBINE FACTORS TO COMPLETE MULTI-FACTOR COST RASTER CREATION ////////
+// Create cost raster of raw costs multiplying costs of snow, altitude and surface water barrier and dividing potable
+// water accessibility factors. Multiply the reservoir mask and give the masked cells a new cost value.
+// Add the sea mask to increase the cost of all surface water areas that are not navigable using a hiking function.
+
+var costs_raw = (cost_slope
+    .select('slope').rename('cost'))
+    .multiply(cost_snow)
+    .multiply(cost_altitude)
+    .multiply(cost_surface_water)
+    .divide(cost_reducer_water_accessibility)
+    .multiply(mask_reservoirs)
+    .add(reservoirs_new_value)
+    .add(mask_sea);
+
+//////// SCALING AND NORMALISATION ////////
+// Scaling and normalisation are necessary to reduce the very high computational costs a floating raster will have
+// in the calculation of the cost accumulation raster. From the current floating point raster an unsigned 8 bit
+// raster is developed.
+// The process includes two steps:
+//   1. Assigning a maximum cost value that will substitute all values larger than it. This reduces the impact of
+//      extremely high outlier values in the floating raster and retains more detailed variability at lower values
+//      that are the most significant in terms of movement.
+//   2. Scaling cost values to between 0-255.
+
+// Assign a maximum cost value. User input required.
+var specify_maximum_cost = prompt('Value for the maximum cost', 40);
+var maximum_cost = Math.round(specify_maximum_cost);
+print('Maximum cost', maximum_cost);
+
+// Substitute all values higher than the maximum cost value.
+var costs_max_assigned = (costs_raw.gt(maximum_cost).multiply(maximum_cost))
+    .add(costs_raw.lte(maximum_cost).multiply(costs_raw));
+
+// Scale values to between 0-255
+var cost_surface = (costs_max_assigned.divide(maximum_cost)).multiply(255)
+    .byte();
+
+
+//////// VISUALISATION ////////
+// Visualise the cost surface in the Code Editor map display.
+Map.addLayer(cost_surface,
+    {palette: '0f00ff, 03ff00, efff00, ffbc00, ff0000, ff0081'
+    }, 'Cost surface');
+
+
+//////// EXPORT COST SURFACE ////////
+// Export the cost surface to Google Drive.
+
+// Specify the resolution for the output raster.
+var dsm_resolution = Math.round((dsm.projection().nominalScale().getInfo())*1000) / 1000;
+var specify_output_resolution = prompt('Output raster resolution in m (default equals DSM resolution)', dsm_resolution);
+
+// If output resolution specified is different from the DSM resolution, use the specified resolution for output.
+if (specify_output_resolution <= dsm_resolution) {var output_resolution = dsm_resolution;} else {var outrr = specify_output_resolution;}
+
+
+// Set variables for file string to declare a clear file name for the exported cost surface.
+// Get the current date as string.
+var eeToday = ee.Date(Date.now());
+var today = eeToday.format('YYMMdd');
+var date = today.getInfo();
+
+// Turn the EVI water threshold into a string.
+var waterThrs_string = waterThrs.toString().replace(".", "");
+// Turn the output resolution into a string.
+var output_resolution_string = output_resolution.toString().replace(".", "");
+
+// Export the cost surface to Google Drive.
+// The description serves both as the description for the task and the file name for the exported file.
+// A folder with the specified name will be created if it does not already exist.
+// CAREFUL: This string should be no longer than 40 characters as Google Drive truncates file names above 40
+// characters upon download of the file.
+Export.image.toDrive({
+    image: cost_surface,
+    description: 'costsurf' + '_costs' + 'slope' + 'seas' + 'snow' +'surfw' + 'dam' + 'watattr' + waterThrs_string + '_' + monthNum + monthName + '_maxcost' + maximum_cost + '_' + 'res' + output_resolution_string + '_' + date,
+    folder: 'GEE_exports',
+    scale: output_resolution,
+    maxPixels: 9e12,
+    region: geometry
+});
