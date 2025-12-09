@@ -7,6 +7,10 @@ Based on the original code and paper:
 > away: modelling mobility and connectivity across the Iranian Plateau in late prehistory (c. 10,000-2000 BC) using 
 > multi-factor probabilistic corridors*. 
 > submitted to Journal of Archaeological Research
+> 
+
+> 
+> Original code repository: https://github.com/fjuercke/2025_MPRM_Petrie_etal_JAR
 
 ## Contents
 

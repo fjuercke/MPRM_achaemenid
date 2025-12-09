@@ -119,17 +119,22 @@ var slope = ee.Terrain.slope(dsm);
 // Transform slope to mathematical degrees as a basis for the slope cost calculation in the next step.
 var slp_rad = slope.multiply(3.1415926536)
     .divide(180);
-var slp_dg = slp_rad.tan();
+// var slp_dg = slp_rad.tan();
+var slp_pct = slp_rad.tan().multiply(100);  // **changed: now slope in percent**
 
-// Calculate slope costs for humans using the sixth degree polynomial developed by Herzog (2013).
-var cost_slope = ((slp_dg.pow(6)).multiply(1337.8))
-    .add((slp_dg.pow(5)).multiply(278.19))
-    .subtract((slp_dg.pow(4)).multiply(517.39))
-    .subtract((slp_dg.pow(3)).multiply(78.199))
-    .add((slp_dg.pow(2)).multiply(93.419))
-    .add((slp_dg.multiply(19.825)))
-    .add(1.64);
+// // Calculate slope costs for humans using the sixth degree polynomial developed by Herzog (2013).
+// var cost_slope = ((slp_dg.pow(6)).multiply(1337.8))
+//     .add((slp_dg.pow(5)).multiply(278.19))
+//     .subtract((slp_dg.pow(4)).multiply(517.39))
+//     .subtract((slp_dg.pow(3)).multiply(78.199))
+//     .add((slp_dg.pow(2)).multiply(93.419))
+//     .add((slp_dg.multiply(19.825)))
+//     .add(1.64);
 
+var critical = 8;  // ŝ value (critical slope)
+
+// Calculate slope cost: Cost(s) = 1 + (s/ŝ)^2
+var cost_slope = slp_pct.divide(critical).pow(2).add(1);  // **replaced Herzog polynomial**
 
 //////// **FACTOR B:** ALTITUDE ('cost_altitude') ////////
 // Create a raster to factor in the effect of altitude for travellers for all areas above 2000 m asl.
