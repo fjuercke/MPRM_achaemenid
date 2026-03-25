@@ -40,7 +40,7 @@ All further instructions are contained in the JavaScript Code.
 
 ### Changes to the MPRM model:
 The changes made to the original code to adapt it for modelling the
-Achaemenid Royal Road have been made by F.K. Jürcke with input from D. Salaris.
+Achaemenid Royal Road have been made by F.K. Jürcke and D. Salaris.
 
 The changes include:
 - use of a critical slope formula to account for wheeled vehicle movement
